@@ -1,0 +1,45 @@
+default_platform(:android)
+
+# ── Android ───────────────────────────────────────────────────────────────────
+platform :android do
+  desc "Build debug APK"
+  lane :build_debug do
+    sh("flutter build apk --debug")
+  end
+
+  desc "Build release APK"
+  lane :build_release do
+    sh("flutter build apk --release")
+  end
+
+  desc "Build release AAB for Play Store"
+  lane :build_aab do
+    sh("flutter build appbundle --release")
+  end
+
+  desc "Deploy to Play Store internal track"
+  lane :deploy_internal do
+    build_aab
+    upload_to_play_store(
+      track: "internal",
+      aab: "../build/app/outputs/bundle/release/app-release.aab",
+    )
+  end
+end
+
+# ── iOS ───────────────────────────────────────────────────────────────────────
+platform :ios do
+  desc "Build iOS (no codesign)"
+  lane :build do
+    sh("flutter build ios --no-codesign")
+  end
+
+  desc "Build and deploy to TestFlight"
+  lane :beta do
+    sh("flutter build ipa --release")
+    upload_to_testflight(
+      ipa: "../build/ios/ipa/hirex_app.ipa",
+      skip_waiting_for_build_processing: true,
+    )
+  end
+end

@@ -1,0 +1,7 @@
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/hirex_logo.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#E8192C"
+  adaptive_icon_foreground: "assets/images/hirex_logo.png"

@@ -1,0 +1,9 @@
+# Android
+json_key_file("fastlane/google-play-key.json")
+package_name("com.hirex.hirex_app")
+
+# iOS
+app_identifier("com.hirex.hirexApp")
+apple_id("your-apple-id@example.com")
+itc_team_id("YOUR_ITC_TEAM_ID")
+team_id("YOUR_TEAM_ID")
