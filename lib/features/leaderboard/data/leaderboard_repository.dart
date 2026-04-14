@@ -1,12 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hirex_app/core/network/dio_client.dart';
-import 'package:hirex_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hirex_app/features/leaderboard/data/models/leaderboard_row.dart';
 import 'package:hirex_app/features/leaderboard/data/models/user_rank.dart';
 
+final _dioClientProvider = Provider<DioClient>((ref) => DioClient());
+
 final leaderboardRepositoryProvider = Provider<LeaderboardRepository>((ref) {
-  final dio = ref.watch(dioClientProvider).instance;
+  final dio = ref.watch(_dioClientProvider).instance;
   return LeaderboardRepository(dio);
 });
 
@@ -20,7 +21,7 @@ class LeaderboardRepository {
     int limit = 50,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/global',
+      '/api/v1/leaderboard/global',
       queryParameters: {'page': page, 'limit': limit},
     );
     return LeaderboardResponse.fromJson(response.data);
@@ -32,7 +33,7 @@ class LeaderboardRepository {
     int limit = 50,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/country',
+      '/api/v1/leaderboard/country',
       queryParameters: {
         if (country != null) 'country': country,
         'page': page,
@@ -48,7 +49,7 @@ class LeaderboardRepository {
     int limit = 50,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/domain',
+      '/api/v1/leaderboard/domain',
       queryParameters: {'domain': domain, 'page': page, 'limit': limit},
     );
     return LeaderboardResponse.fromJson(response.data);
@@ -60,7 +61,7 @@ class LeaderboardRepository {
     int limit = 50,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/experience',
+      '/api/v1/leaderboard/experience',
       queryParameters: {'level': level, 'page': page, 'limit': limit},
     );
     return LeaderboardResponse.fromJson(response.data);
@@ -71,7 +72,7 @@ class LeaderboardRepository {
     int limit = 100,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/weekly',
+      '/api/v1/leaderboard/weekly',
       queryParameters: {'page': page, 'limit': limit},
     );
     return LeaderboardResponse.fromJson(response.data);
@@ -82,25 +83,25 @@ class LeaderboardRepository {
     int limit = 100,
   }) async {
     final response = await _dio.get(
-      '/api/leaderboard/monthly',
+      '/api/v1/leaderboard/monthly',
       queryParameters: {'page': page, 'limit': limit},
     );
     return LeaderboardResponse.fromJson(response.data);
   }
 
   Future<UserRank> getMyRank() async {
-    final response = await _dio.get('/api/elo/me');
+    final response = await _dio.get('/api/v1/elo/me');
     return UserRank.fromJson(response.data);
   }
 
   Future<UserRank> getUserRank(String userId) async {
-    final response = await _dio.get('/api/elo/$userId');
+    final response = await _dio.get('/api/v1/elo/$userId');
     return UserRank.fromJson(response.data);
   }
 
   Future<List<EloHistoryItem>> getEloHistory({int days = 30}) async {
     final response = await _dio.get(
-      '/api/elo/me/history',
+      '/api/v1/elo/me/history',
       queryParameters: {'days': days},
     );
     final items = (response.data['items'] as List)
@@ -110,7 +111,7 @@ class LeaderboardRepository {
   }
 
   Future<EloBreakdown> getEloBreakdown() async {
-    final response = await _dio.get('/api/elo/me/breakdown');
+    final response = await _dio.get('/api/v1/elo/me/breakdown');
     return EloBreakdown.fromJson(response.data);
   }
 }
