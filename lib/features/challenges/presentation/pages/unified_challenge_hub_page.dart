@@ -1,40 +1,48 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../shared/widgets/hirex_loader.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../recruiter/presentation/providers/recruiter_providers.dart';
+import '../../../solo_challenges/presentation/providers/solo_challenge_providers.dart';
+import '../../../solo_challenges/presentation/widgets/challenge_card.dart';
+import '../../../solo_challenges/presentation/widgets/streak_card.dart';
 import '../../domain/entities/challenge_entities.dart';
 import '../providers/challenge_providers.dart';
 import '../widgets/elo_badge.dart';
 import '../widgets/match_card.dart';
+import '../../../../shared/widgets/hirex_loader.dart';
+import 'dart:async';
 
-class ChallengeHubPage extends ConsumerStatefulWidget {
-  const ChallengeHubPage({super.key});
+/// Unified Challenge Hub with tabs for 1v1 and Solo challenges
+class UnifiedChallengeHubPage extends ConsumerStatefulWidget {
+  const UnifiedChallengeHubPage({super.key});
 
   @override
-  ConsumerState<ChallengeHubPage> createState() => _ChallengeHubPageState();
+  ConsumerState<UnifiedChallengeHubPage> createState() => _UnifiedChallengeHubPageState();
 }
 
-class _ChallengeHubPageState extends ConsumerState<ChallengeHubPage>
-    with WidgetsBindingObserver {
+class _UnifiedChallengeHubPageState extends ConsumerState<UnifiedChallengeHubPage>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late TabController _tabController;
   Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addObserver(this);
-    // Refresh immediately on first load
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
-    // Poll every 15 seconds for new pending invites
     _pollTimer = Timer.periodic(const Duration(seconds: 15), (_) => _refresh());
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     super.dispose();
@@ -42,7 +50,6 @@ class _ChallengeHubPageState extends ConsumerState<ChallengeHubPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Refresh when app comes back to foreground
     if (state == AppLifecycleState.resumed) {
       _refresh();
     }
@@ -50,24 +57,23 @@ class _ChallengeHubPageState extends ConsumerState<ChallengeHubPage>
 
   void _refresh() {
     if (!mounted) return;
+    // Refresh 1v1 data
     ref.invalidate(myEloProvider);
     ref.invalidate(myMatchesProvider);
     ref.invalidate(pendingInvitesProvider);
+    // Refresh solo challenge data
+    ref.invalidate(challengeHubProvider);
   }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authNotifierProvider).valueOrNull;
-    final eloAsync = ref.watch(myEloProvider);
-    final matchesAsync = ref.watch(myMatchesProvider);
-    final pendingAsync = ref.watch(pendingInvitesProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('1v1 Challenges', style: AppTextStyles.headlineMedium),
+        title: const Text('Challenges', style: AppTextStyles.headlineMedium),
         actions: [
-          // Notifications bell with unread badge
           _NotificationBell(),
           IconButton(
             icon: const Icon(Icons.history_rounded),
@@ -75,137 +81,290 @@ class _ChallengeHubPageState extends ConsumerState<ChallengeHubPage>
             onPressed: () => context.push('/profile/${user?.id}/matches'),
           ),
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: AppColors.primary,
+          labelColor: AppColors.primary,
+          unselectedLabelColor: AppColors.onSurface,
+          labelStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w400,
+            fontSize: 14,
+          ),
+          tabs: const [
+            Tab(text: '1v1 Challenges'),
+            Tab(text: 'Daily/Weekly/Monthly'),
+          ],
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/challenges/1v1/new'),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Challenge',
-            style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+      floatingActionButton: _tabController.index == 0
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/challenges/1v1/new'),
+              backgroundColor: AppColors.primary,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Challenge',
+                  style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+            )
+          : null,
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _OneVsOneTab(user: user, ref: ref, onRefresh: _refresh),
+          _SoloChallengesTab(ref: ref, onRefresh: _refresh),
+        ],
       ),
-      body: RefreshIndicator(
-        color: AppColors.primary,
-        onRefresh: () async => _refresh(),
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          children: [
-            // ELO Card
-            eloAsync.when(
-              data: (elo) => _EloCard(elo: elo),
-              loading: () => const _EloCardSkeleton(),
-              error: (_, __) => const _EloCardSkeleton(),
-            ),
-            const SizedBox(height: 24),
+    );
+  }
+}
 
-            // Pending invites section (incoming — opponent view)
-            pendingAsync.when(
-              data: (pending) {
-                final incoming = pending.where((m) => m.opponentId == user?.id).toList();
-                if (incoming.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Text('Incoming Challenges',
-                            style: AppTextStyles.headlineMedium),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.warning.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            '${incoming.length}',
-                            style: const TextStyle(
-                              color: AppColors.warning,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              fontFamily: 'Inter',
-                            ),
+
+
+// ── 1v1 Tab Content ───────────────────────────────────────────────────────────
+
+class _OneVsOneTab extends StatelessWidget {
+  const _OneVsOneTab({
+    required this.user,
+    required this.ref,
+    required this.onRefresh,
+  });
+
+  final dynamic user;
+  final WidgetRef ref;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final eloAsync = ref.watch(myEloProvider);
+    final matchesAsync = ref.watch(myMatchesProvider);
+    final pendingAsync = ref.watch(pendingInvitesProvider);
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      onRefresh: () async => onRefresh(),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        children: [
+          // ELO Card
+          eloAsync.when(
+            data: (elo) => _EloCard(elo: elo),
+            loading: () => const _EloCardSkeleton(),
+            error: (_, __) => const _EloCardSkeleton(),
+          ),
+          const SizedBox(height: 24),
+
+          // Pending invites section
+          pendingAsync.when(
+            data: (pending) {
+              final incoming = pending.where((m) => m.opponentId == user?.id).toList();
+              if (incoming.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Incoming Challenges',
+                          style: AppTextStyles.headlineMedium),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '${incoming.length}',
+                          style: const TextStyle(
+                            color: AppColors.warning,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            fontFamily: 'Inter',
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...incoming.map((m) => _PendingInviteCard(
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...incoming.map((m) => _PendingInviteCard(
+                        match: m,
+                        currentUserId: user?.id ?? '',
+                        ref: ref,
+                      )),
+                  const SizedBox(height: 24),
+                ],
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+
+          // Sent challenges section
+          pendingAsync.when(
+            data: (pending) {
+              final sent = pending.where((m) => m.challengerId == user?.id).toList();
+              final cached = ref.watch(createdMatchCacheProvider);
+              final allSent = [
+                ...sent,
+                if (cached != null && !sent.any((m) => m.id == cached.id)) cached,
+              ];
+              if (allSent.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Sent Challenges', style: AppTextStyles.headlineMedium),
+                  const SizedBox(height: 12),
+                  ...allSent.map((m) => _SentChallengeCard(match: m)),
+                  const SizedBox(height: 24),
+                ],
+              );
+            },
+            loading: () {
+              final cached = ref.watch(createdMatchCacheProvider);
+              if (cached == null) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Sent Challenges', style: AppTextStyles.headlineMedium),
+                  const SizedBox(height: 12),
+                  _SentChallengeCard(match: cached),
+                  const SizedBox(height: 24),
+                ],
+              );
+            },
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+
+          // Recent matches
+          const Text('Recent Matches', style: AppTextStyles.headlineMedium),
+          const SizedBox(height: 12),
+          matchesAsync.when(
+            data: (matches) {
+              if (matches.isEmpty) {
+                return _EmptyState(
+                  onChallenge: () => context.push('/challenges/1v1/new'),
+                );
+              }
+              final recent = matches.take(10).toList();
+              return Column(
+                children: recent
+                    .map((m) => MatchCard(
                           match: m,
                           currentUserId: user?.id ?? '',
-                          ref: ref,
-                        )),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, __) => const SizedBox.shrink(),
+                        ))
+                    .toList(),
+              );
+            },
+            loading: () => const Center(child: HireXLoader()),
+            error: (e, _) => Center(
+              child: Text(e.toString(),
+                  style: const TextStyle(color: AppColors.error)),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            // Sent challenges section (challenger view — waiting for response)
-            pendingAsync.when(
-              data: (pending) {
-                final sent = pending.where((m) => m.challengerId == user?.id).toList();
-                // Also show cached match if not yet in the list (race condition after creation)
-                final cached = ref.watch(createdMatchCacheProvider);
-                final allSent = [
-                  ...sent,
-                  if (cached != null && !sent.any((m) => m.id == cached.id)) cached,
-                ];
-                if (allSent.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Sent Challenges', style: AppTextStyles.headlineMedium),
-                    const SizedBox(height: 12),
-                    ...allSent.map((m) => _SentChallengeCard(match: m)),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-              loading: () {
-                // Show cached match while loading
-                final cached = ref.watch(createdMatchCacheProvider);
-                if (cached == null) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Sent Challenges', style: AppTextStyles.headlineMedium),
-                    const SizedBox(height: 12),
-                    _SentChallengeCard(match: cached),
-                    const SizedBox(height: 24),
-                  ],
-                );
-              },
-              error: (_, __) => const SizedBox.shrink(),
-            ),
+// ── Solo Challenges Tab Content ──────────────────────────────────────────────
 
-            // Recent matches
-            const Text('Recent Matches', style: AppTextStyles.headlineMedium),
-            const SizedBox(height: 12),
-            matchesAsync.when(
-              data: (matches) {
-                if (matches.isEmpty) {
-                  return _EmptyState(
-                    onChallenge: () => context.push('/challenges/1v1/new'),
-                  );
-                }
-                final recent = matches.take(10).toList();
-                return Column(
-                  children: recent
-                      .map((m) => MatchCard(
-                            match: m,
-                            currentUserId: user?.id ?? '',
-                          ))
-                      .toList(),
-                );
-              },
-              loading: () => const Center(child: HireXLoader()),
-              error: (e, _) => Center(
-                child: Text(e.toString(),
-                    style: const TextStyle(color: AppColors.error)),
+class _SoloChallengesTab extends StatelessWidget {
+  const _SoloChallengesTab({
+    required this.ref,
+    required this.onRefresh,
+  });
+
+  final WidgetRef ref;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final hubAsync = ref.watch(challengeHubProvider);
+
+    return hubAsync.when(
+      data: (hub) => RefreshIndicator(
+        onRefresh: () async => onRefresh(),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Streak card
+              StreakCard(streak: hub.streak),
+              const SizedBox(height: 24),
+
+              // Daily challenge
+              Text(
+                'Daily Challenge',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
+              const SizedBox(height: 12),
+              ChallengeCard(
+                type: 'daily',
+                title: hub.daily.questionTitle ?? 'No challenge today',
+                difficulty: hub.daily.difficulty,
+                xpReward: hub.daily.xpReward,
+                status: hub.daily.status,
+                completed: hub.daily.completed,
+                onTap: () => context.push('/challenges/solo/daily'),
+              ),
+              const SizedBox(height: 24),
+
+              // Weekly challenge
+              Text(
+                'Weekly Challenge',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              ChallengeCard(
+                type: 'weekly',
+                title: hub.weekly.questionTitle ?? 'No challenge this week',
+                difficulty: hub.weekly.difficulty,
+                xpReward: hub.weekly.xpReward,
+                status: hub.weekly.status,
+                completed: hub.weekly.completed,
+                onTap: () => context.push('/challenges/solo/weekly'),
+              ),
+              const SizedBox(height: 24),
+
+              // Monthly challenge
+              Text(
+                'Monthly Challenge',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              ChallengeCard(
+                type: 'monthly',
+                title: hub.monthly.questionTitle ?? 'No challenge this month',
+                difficulty: hub.monthly.difficulty,
+                xpReward: hub.monthly.xpReward,
+                status: hub.monthly.status,
+                completed: hub.monthly.completed,
+                onTap: () => context.push('/challenges/solo/monthly'),
+              ),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+      ),
+      loading: () => const Center(child: HireXLoader()),
+      error: (error, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text('Error: $error'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => onRefresh(),
+              child: const Text('Retry'),
             ),
           ],
         ),
@@ -214,7 +373,7 @@ class _ChallengeHubPageState extends ConsumerState<ChallengeHubPage>
   }
 }
 
-// ── Pending Invite Card ───────────────────────────────────────────────────────
+// ── Reusable Widgets from ChallengeHubPage ───────────────────────────────────
 
 class _PendingInviteCard extends StatelessWidget {
   const _PendingInviteCard({
@@ -234,7 +393,6 @@ class _PendingInviteCard extends StatelessWidget {
     final actionState = ref.watch(inviteActionProvider);
     final isLoading = actionState.isLoading;
 
-    // If current user is the opponent — show accept/decline inline + tap to full page
     if (_isOpponent) {
       return GestureDetector(
         onTap: () => context.push('/challenges/1v1/${match.id}/invite'),
@@ -264,7 +422,6 @@ class _PendingInviteCard extends StatelessWidget {
       );
     }
 
-    // Challenger view — just show the card (waiting for response)
     return GestureDetector(
       onTap: () => context.push('/challenges/1v1/${match.id}/invite'),
       child: MatchCard(
@@ -326,8 +483,6 @@ class _PendingInviteCard extends StatelessWidget {
     );
   }
 }
-
-// ── ELO Card ──────────────────────────────────────────────────────────────────
 
 class _EloCard extends StatelessWidget {
   const _EloCard({required this.elo});
@@ -492,8 +647,6 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ── Sent Challenge Card ───────────────────────────────────────────────────────
-
 class _SentChallengeCard extends StatelessWidget {
   const _SentChallengeCard({required this.match});
   final MatchEntity match;
@@ -577,8 +730,6 @@ class _SentChallengeCard extends StatelessWidget {
     );
   }
 }
-
-// ── Notification Bell ─────────────────────────────────────────────────────────
 
 class _NotificationBell extends ConsumerWidget {
   const _NotificationBell();

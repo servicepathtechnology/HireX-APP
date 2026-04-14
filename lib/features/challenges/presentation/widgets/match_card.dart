@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../domain/entities/challenge_entities.dart';
 
@@ -26,12 +27,28 @@ class MatchCard extends StatelessWidget {
   String? get _opponentAvatar =>
       _isChallenger ? match.opponentAvatarUrl : match.challengerAvatarUrl;
 
+  Future<void> _openChallengeRoom(BuildContext context) async {
+    final link = match.challengeLink;
+    if (link != null && link.isNotEmpty) {
+      try {
+        final uri = Uri.parse(link);
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    }
+    if (context.mounted) {
+      context.push('/challenges/1v1/${match.id}/room');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
         if (match.status == MatchStatus.active) {
-          context.push('/challenges/1v1/${match.id}');
+          _openChallengeRoom(context);
         } else if (match.status == MatchStatus.completed) {
           context.push('/challenges/1v1/${match.id}/result');
         }
@@ -42,7 +59,11 @@ class MatchCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(
+            color: match.status == MatchStatus.active
+                ? AppColors.success.withValues(alpha: 0.4)
+                : AppColors.divider,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -120,6 +141,26 @@ class MatchCard extends StatelessWidget {
                   ),
               ],
             ),
+            // Active match — show Start Challenge button
+            if (match.status == MatchStatus.active) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _openChallengeRoom(context),
+                  icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                  label: const Text('Start Challenge',
+                      style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: Colors.black,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ),
+            ],
+            // Pending — show accept/decline for opponent
             if (match.status == MatchStatus.pending && !_isChallenger) ...[
               const SizedBox(height: 12),
               Row(

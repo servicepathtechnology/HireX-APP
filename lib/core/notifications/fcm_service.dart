@@ -3,6 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../network/dio_client.dart';
 
@@ -50,9 +51,17 @@ class FCMService {
     // Register background handler
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
-    // Foreground messages
+    // Foreground messages — show local notification AND handle challenge_accepted link
     FirebaseMessaging.onMessage.listen((message) {
       _showLocalNotification(message);
+      // If it's challenge_accepted with a link, open it immediately (app is in foreground)
+      final type = message.data['type'] as String?;
+      final link = message.data['challenge_link'] as String?;
+      if ((type == 'challenge_accepted' || type == 'match_starting') &&
+          link != null &&
+          link.isNotEmpty) {
+        _launchUrlSafe(link);
+      }
     });
 
     // Register token
@@ -124,8 +133,19 @@ class FCMService {
     );
   }
 
+  /// Silently launch a URL — never throws.
+  static Future<void> _launchUrlSafe(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {}
+  }
+
   /// Handle notification tap navigation — call on app start and onMessageOpenedApp.
-  static void handleMessageNavigation(RemoteMessage message, GoRouter router) {
+  static void handleMessageNavigation(RemoteMessage message, GoRouter router,
+      {VoidCallback? onChallengeNotification}) {
     final data = message.data;
     final type = data['type'] as String?;
     final submissionId = data['submission_id'] as String?;
@@ -160,28 +180,59 @@ class FCMService {
         break;
       // ── Part 1 — 1v1 Live Challenges ──────────────────────────────────────
       case 'challenge_invite':
-        router.push('/challenges/1v1');
+        onChallengeNotification?.call();
+        final inviteMatchId = data['match_id'] as String?;
+        if (inviteMatchId != null) {
+          router.go('/challenges/1v1/$inviteMatchId/invite');
+        } else {
+          router.go('/challenges/1v1');
+        }
         break;
       case 'challenge_accepted':
         final matchId = data['match_id'] as String?;
-        if (matchId != null) router.push('/challenges/1v1/$matchId');
+        final challengeLink = data['challenge_link'] as String?;
+        onChallengeNotification?.call();
+        // Try to open the external challenge room link
+        if (challengeLink != null && challengeLink.isNotEmpty) {
+          _launchUrlSafe(challengeLink);
+        }
+        if (matchId != null) {
+          router.go('/challenges/1v1/$matchId/invite');
+        } else {
+          router.go('/challenges/1v1');
+        }
         break;
       case 'challenge_declined':
-        router.push('/challenges/1v1');
+        onChallengeNotification?.call();
+        router.go('/challenges/1v1');
         break;
       case 'invite_expired':
-        router.push('/challenges/1v1');
+        onChallengeNotification?.call();
+        final expiredMatchId = data['match_id'] as String?;
+        if (expiredMatchId != null) {
+          router.go('/challenges/1v1/$expiredMatchId/invite');
+        } else {
+          router.go('/challenges/1v1');
+        }
         break;
       case 'match_starting':
         final startingMatchId = data['match_id'] as String?;
-        if (startingMatchId != null) router.push('/challenges/1v1/$startingMatchId');
+        final startingLink = data['challenge_link'] as String?;
+        onChallengeNotification?.call();
+        if (startingLink != null && startingLink.isNotEmpty) {
+          _launchUrlSafe(startingLink);
+        } else if (startingMatchId != null) {
+          router.push('/challenges/1v1/$startingMatchId');
+        }
         break;
       case 'match_result_ready':
         final resultMatchId = data['match_id'] as String?;
+        onChallengeNotification?.call();
         if (resultMatchId != null) router.push('/challenges/1v1/$resultMatchId/result');
         break;
       case 'elo_tier_changed':
-        router.push('/challenges/1v1');
+        onChallengeNotification?.call();
+        router.go('/challenges/1v1');
         break;
       default:
         router.push('/notifications');
@@ -189,15 +240,22 @@ class FCMService {
   }
 
   /// Check for initial message (app killed, notification tapped).
-  Future<void> checkInitialMessage(GoRouter router) async {
+  Future<void> checkInitialMessage(GoRouter router,
+      {VoidCallback? onChallengeNotification}) async {
     final message = await _messaging.getInitialMessage();
     if (message != null) {
-      handleMessageNavigation(message, router);
+      // Delay to let auth state resolve before navigating
+      await Future.delayed(const Duration(milliseconds: 1500));
+      handleMessageNavigation(message, router,
+          onChallengeNotification: onChallengeNotification);
     }
 
     // Background tap
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      handleMessageNavigation(message, router);
+    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+      // Small delay to ensure router redirect has settled
+      await Future.delayed(const Duration(milliseconds: 500));
+      handleMessageNavigation(message, router,
+          onChallengeNotification: onChallengeNotification);
     });
   }
 }

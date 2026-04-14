@@ -47,11 +47,24 @@ import '../../features/referral/presentation/pages/referral_hub_page.dart';
 import '../../features/challenges/presentation/pages/challenge_hub_page.dart';
 import '../../features/challenges/presentation/pages/new_challenge_page.dart';
 import '../../features/challenges/presentation/pages/live_challenge_room_page.dart';
+import '../../features/challenges/presentation/pages/challenge_room_webview_page.dart';
 import '../../features/challenges/presentation/pages/match_result_page.dart';
 import '../../features/challenges/presentation/pages/match_comparison_page.dart';
 import '../../features/challenges/presentation/pages/spectator_view_page.dart';
 import '../../features/challenges/presentation/pages/match_history_page.dart';
 import '../../features/challenges/presentation/pages/match_detail_page.dart';
+import '../../features/challenges/presentation/pages/challenge_invite_page.dart';
+import '../../features/challenges/presentation/pages/pending_challenge_page.dart';
+import '../../features/challenges/presentation/pages/badge_earned_overlay_page.dart';
+import '../../features/challenges/presentation/pages/unified_challenge_hub_page.dart';
+// Part 2 — Solo Challenges
+import '../../features/solo_challenges/presentation/pages/solo_challenge_hub_page.dart';
+import '../../features/solo_challenges/presentation/pages/daily_challenge_page.dart';
+import '../../features/solo_challenges/presentation/pages/weekly_challenge_page.dart';
+import '../../features/solo_challenges/presentation/pages/monthly_challenge_page.dart';
+import '../../features/solo_challenges/presentation/pages/solo_room_webview_page.dart';
+import '../../features/solo_challenges/presentation/pages/streak_detail_page.dart';
+import '../../features/solo_challenges/presentation/pages/preferences_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -281,6 +294,33 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const NewChallengePage(),
       ),
       GoRoute(
+        path: '/challenges/1v1/:matchId/invite',
+        name: 'challengeInvite',
+        builder: (_, state) =>
+            ChallengeInvitePage(matchId: state.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: '/challenges/1v1/:matchId/pending',
+        name: 'pendingChallenge',
+        builder: (_, state) =>
+            PendingChallengePage(matchId: state.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: '/challenges/1v1/:matchId/room',
+        name: 'challengeRoomWebView',
+        builder: (_, state) =>
+            ChallengeRoomWebViewPage(matchId: state.pathParameters['matchId']!),
+      ),
+      GoRoute(
+        path: '/challenges/1v1/:matchId/badge',
+        name: 'badgeEarned',
+        builder: (_, state) => BadgeEarnedOverlayPage(
+          matchId: state.pathParameters['matchId']!,
+          badge: state.uri.queryParameters['badge'] ?? 'coding_warrior',
+          points: int.tryParse(state.uri.queryParameters['points'] ?? '50') ?? 50,
+        ),
+      ),
+      GoRoute(
         path: '/challenges/1v1/:matchId',
         name: 'liveRoom',
         builder: (_, state) =>
@@ -325,6 +365,50 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => SignupPage(referralCode: state.pathParameters['referralCode']),
       ),
 
+      // ── Part 2 — Solo Challenges ──────────────────────────────────────────
+      GoRoute(
+        path: '/challenges/solo',
+        name: 'soloChallengeHub',
+        builder: (_, __) => const SoloChallengeHubPage(),
+      ),
+      GoRoute(
+        path: '/challenges/solo/daily',
+        name: 'dailyChallenge',
+        builder: (_, __) => const DailyChallengePage(),
+      ),
+      GoRoute(
+        path: '/challenges/solo/weekly',
+        name: 'weeklyChallenge',
+        builder: (_, __) => const WeeklyChallengePage(),
+      ),
+      GoRoute(
+        path: '/challenges/solo/monthly',
+        name: 'monthlyChallenge',
+        builder: (_, __) => const MonthlyChallengePage(),
+      ),
+      GoRoute(
+        path: '/challenges/solo/room',
+        name: 'soloRoomWebView',
+        builder: (_, state) {
+          final url = state.uri.queryParameters['url'] ?? '';
+          final token = state.uri.queryParameters['token'] ?? '';
+          return SoloRoomWebViewPage(
+            roomUrl: Uri.decodeComponent(url),
+            roomToken: token,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/challenges/solo/streak',
+        name: 'streakDetail',
+        builder: (_, __) => const StreakDetailPage(),
+      ),
+      GoRoute(
+        path: '/challenges/solo/preferences',
+        name: 'challengePreferences',
+        builder: (_, __) => const ChallengePreferencesPage(),
+      ),
+
       // ── Candidate shell ───────────────────────────────────────────────────
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
@@ -343,7 +427,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/challenges/1v1',
             name: 'challengeHubShell',
-            builder: (_, __) => const ChallengeHubPage(),
+            builder: (_, __) => const UnifiedChallengeHubPage(),
           ),
           GoRoute(
             path: '/messages',

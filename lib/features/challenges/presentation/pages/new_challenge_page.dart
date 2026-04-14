@@ -178,14 +178,10 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
         ref.invalidate(myMatchesProvider);
         ref.invalidate(pendingInvitesProvider);
         ref.invalidate(myEloProvider);
+        final matchId = next.createdMatch!.id;
         notifier.reset();
-        context.go('/challenges/1v1');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Challenge sent! Waiting for opponent to accept.'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        // Navigate to pending status screen (SCR-03)
+        context.go('/challenges/1v1/$matchId/pending');
       }
     });
 
@@ -242,42 +238,78 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
 
           const SizedBox(height: 28),
 
-          // ── Step 2: Domain ────────────────────────────────────────────────
-          _SectionLabel(label: '2. Select Domain', icon: Icons.category_rounded),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children: ChallengeDomain.values.map((d) {
-              final selected = state.selectedDomain == d;
-              return GestureDetector(
-                onTap: () => notifier.setDomain(d),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: selected ? AppColors.primary : AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: selected ? AppColors.primary : AppColors.divider,
-                    ),
+          // ── Coding-only banner ────────────────────────────────────────────
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.code_rounded, color: AppColors.primary, size: 18),
+                SizedBox(width: 8),
+                Text(
+                  '1v1 challenges are Coding only',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontFamily: 'Inter',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_domainIcon(d), size: 16,
-                          color: selected ? Colors.white : AppColors.onSurface),
-                      const SizedBox(width: 6),
-                      Text(
-                        d.label,
-                        style: TextStyle(
-                          color: selected ? Colors.white : AppColors.onSurface,
-                          fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                          fontFamily: 'Inter',
-                          fontSize: 14,
-                        ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Step 2: Difficulty ────────────────────────────────────────────
+          _SectionLabel(label: '2. Difficulty Level', icon: Icons.bar_chart_rounded),
+          const SizedBox(height: 12),
+          Row(
+            children: ChallengeDifficulty.values.map((d) {
+              final selected = state.selectedDifficulty == d;
+              final color = _difficultyColor(d);
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => notifier.setDifficulty(d),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    decoration: BoxDecoration(
+                      color: selected ? color.withValues(alpha: 0.15) : AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected ? color : AppColors.divider,
+                        width: selected ? 2 : 1,
                       ),
-                    ],
+                    ),
+                    child: Column(
+                      children: [
+                        Icon(_difficultyIcon(d), size: 20,
+                            color: selected ? color : AppColors.onSurface),
+                        const SizedBox(height: 4),
+                        Text(
+                          d.label,
+                          style: TextStyle(
+                            color: selected ? color : AppColors.onSurface,
+                            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+                            fontFamily: 'Inter',
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          _difficultySubtitle(d),
+                          style: TextStyle(
+                            color: (selected ? color : AppColors.onSurface).withValues(alpha: 0.6),
+                            fontFamily: 'Inter',
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );
@@ -290,14 +322,14 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
           _SectionLabel(label: '3. Match Duration', icon: Icons.timer_rounded),
           const SizedBox(height: 12),
           Row(
-            children: [30, 60].map((mins) {
+            children: [30, 60, 120].map((mins) {
               final selected = state.durationMinutes == mins;
               return Expanded(
                 child: GestureDetector(
                   onTap: () => notifier.setDuration(mins),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    margin: const EdgeInsets.only(right: 10),
+                    margin: const EdgeInsets.only(right: 8),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     decoration: BoxDecoration(
                       color: selected ? AppColors.primary : AppColors.surface,
@@ -309,18 +341,18 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
                     child: Column(
                       children: [
                         Text(
-                          '$mins',
+                          mins == 120 ? '2h' : '${mins}m',
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 20,
                             fontWeight: FontWeight.w800,
                             color: selected ? Colors.white : AppColors.onSurface,
                             fontFamily: 'Inter',
                           ),
                         ),
                         Text(
-                          'minutes',
+                          mins == 120 ? '120 min' : '$mins min',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: 11,
                             color: selected
                                 ? Colors.white.withValues(alpha: 0.8)
                                 : AppColors.onSurface,
@@ -338,7 +370,7 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
           const SizedBox(height: 28),
 
           // ── Step 4: Message ───────────────────────────────────────────────
-          _SectionLabel(label: '4. Message (optional)', icon: Icons.message_rounded),
+          _SectionLabel(label: '4. Custom Message (optional)', icon: Icons.message_rounded),
           const SizedBox(height: 12),
           TextField(
             controller: _messageController,
@@ -375,14 +407,27 @@ class _NewChallengePageState extends ConsumerState<NewChallengePage> {
     );
   }
 
-  IconData _domainIcon(ChallengeDomain d) {
+  IconData _difficultyIcon(ChallengeDifficulty d) {
     switch (d) {
-      case ChallengeDomain.coding: return Icons.code_rounded;
-      case ChallengeDomain.design: return Icons.palette_rounded;
-      case ChallengeDomain.product: return Icons.lightbulb_rounded;
-      case ChallengeDomain.marketing: return Icons.campaign_rounded;
-      case ChallengeDomain.data: return Icons.bar_chart_rounded;
-      case ChallengeDomain.writing: return Icons.edit_rounded;
+      case ChallengeDifficulty.easy: return Icons.sentiment_satisfied_rounded;
+      case ChallengeDifficulty.medium: return Icons.sentiment_neutral_rounded;
+      case ChallengeDifficulty.hard: return Icons.sentiment_very_dissatisfied_rounded;
+    }
+  }
+
+  Color _difficultyColor(ChallengeDifficulty d) {
+    switch (d) {
+      case ChallengeDifficulty.easy: return const Color(0xFF22C55E);
+      case ChallengeDifficulty.medium: return const Color(0xFFF59E0B);
+      case ChallengeDifficulty.hard: return const Color(0xFFEF4444);
+    }
+  }
+
+  String _difficultySubtitle(ChallengeDifficulty d) {
+    switch (d) {
+      case ChallengeDifficulty.easy: return '200 questions';
+      case ChallengeDifficulty.medium: return '200 questions';
+      case ChallengeDifficulty.hard: return '100 DSA';
     }
   }
 }

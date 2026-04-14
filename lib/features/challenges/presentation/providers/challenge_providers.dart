@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart' as fb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import '../../../../core/analytics/analytics_service.dart';
 import '../../../../features/auth/presentation/providers/auth_provider.dart';
 import '../../data/datasources/challenge_remote_datasource.dart';
@@ -95,7 +97,8 @@ final userSearchProvider =
 class NewChallengeState {
   const NewChallengeState({
     this.selectedOpponent,
-    this.selectedDomain,
+    this.selectedDomain = ChallengeDomain.coding,
+    this.selectedDifficulty = ChallengeDifficulty.easy,
     this.durationMinutes = 30,
     this.message,
     this.isLoading = false,
@@ -104,19 +107,20 @@ class NewChallengeState {
   });
 
   final Map<String, dynamic>? selectedOpponent;
-  final ChallengeDomain? selectedDomain;
+  final ChallengeDomain selectedDomain;
+  final ChallengeDifficulty selectedDifficulty;
   final int durationMinutes;
   final String? message;
   final bool isLoading;
   final String? error;
   final MatchEntity? createdMatch;
 
-  bool get isValid =>
-      selectedOpponent != null && selectedDomain != null;
+  bool get isValid => selectedOpponent != null;
 
   NewChallengeState copyWith({
     Map<String, dynamic>? selectedOpponent,
     ChallengeDomain? selectedDomain,
+    ChallengeDifficulty? selectedDifficulty,
     int? durationMinutes,
     String? message,
     bool? isLoading,
@@ -129,6 +133,7 @@ class NewChallengeState {
       NewChallengeState(
         selectedOpponent: clearOpponent ? null : (selectedOpponent ?? this.selectedOpponent),
         selectedDomain: selectedDomain ?? this.selectedDomain,
+        selectedDifficulty: selectedDifficulty ?? this.selectedDifficulty,
         durationMinutes: durationMinutes ?? this.durationMinutes,
         message: message ?? this.message,
         isLoading: isLoading ?? this.isLoading,
@@ -147,6 +152,9 @@ class NewChallengeNotifier extends Notifier<NewChallengeState> {
   void setDomain(ChallengeDomain domain) =>
       state = state.copyWith(selectedDomain: domain);
 
+  void setDifficulty(ChallengeDifficulty difficulty) =>
+      state = state.copyWith(selectedDifficulty: difficulty);
+
   void setDuration(int minutes) =>
       state = state.copyWith(durationMinutes: minutes);
 
@@ -154,26 +162,48 @@ class NewChallengeNotifier extends Notifier<NewChallengeState> {
       state = state.copyWith(message: msg);
 
   Future<void> sendInvite() async {
-    if (!state.isValid) return;
+    if (!state.isValid || state.isLoading) return;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final match = await ref.read(challengeRepositoryProvider).sendInvite(
             opponentId: state.selectedOpponent!['id'] as String,
-            domain: state.selectedDomain!,
+            domain: state.selectedDomain,
             durationMinutes: state.durationMinutes,
+            difficulty: state.selectedDifficulty,
             message: state.message,
           );
       AnalyticsService.instance.challengeInviteSent(
-        state.selectedDomain!.value,
+        state.selectedDomain.value,
         state.durationMinutes,
       );
       state = state.copyWith(isLoading: false, createdMatch: match);
+      // Cache the match so PendingChallengePage can use it without re-fetching
+      ref.read(createdMatchCacheProvider.notifier).setMatch(match);
       // Invalidate all challenge-related providers so hub refreshes immediately
       ref.invalidate(myMatchesProvider);
       ref.invalidate(pendingInvitesProvider);
       ref.invalidate(myEloProvider);
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final data = e.response?.data;
+      String message;
+      if (data is Map && data['detail'] != null) {
+        message = data['detail'].toString();
+      } else if (status == 409) {
+        message = 'A pending challenge with this opponent already exists.';
+      } else if (status == 400) {
+        message = 'Invalid request. Check your selections and try again.';
+      } else if (status != null && status >= 500) {
+        message = 'Server error. Please try again in a moment.';
+      } else if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout) {
+        message = 'No connection. Check your internet and try again.';
+      } else {
+        message = 'Something went wrong (${status ?? 'unknown'}). Try again.';
+      }
+      state = state.copyWith(isLoading: false, error: message);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: e.toString().replaceFirst('Exception: ', ''));
     }
   }
 
@@ -182,6 +212,66 @@ class NewChallengeNotifier extends Notifier<NewChallengeState> {
 
 final newChallengeProvider = NotifierProvider<NewChallengeNotifier, NewChallengeState>(
   NewChallengeNotifier.new,
+);
+
+// ── Created Match Cache (persisted to Hive so it survives app restarts) ──────
+
+class _CreatedMatchCacheNotifier extends Notifier<MatchEntity?> {
+  static const _boxKey = 'pending_match_id';
+  static const _boxName = 'cache';
+
+  @override
+  MatchEntity? build() {
+    // Restore from Hive on startup
+    _restoreFromHive();
+    return null;
+  }
+
+  void _restoreFromHive() {
+    try {
+      final box = Hive.box<dynamic>(_boxName);
+      final matchId = box.get(_boxKey) as String?;
+      if (matchId != null) {
+        // Fetch the match from the list (avoids 404 on direct GET)
+        Future.microtask(() async {
+          try {
+            final matches = await ref.read(challengeRepositoryProvider).getMyMatches();
+            final match = matches.firstWhere(
+              (m) => m.id == matchId && m.status == MatchStatus.pending,
+              orElse: () => throw StateError('not found'),
+            );
+            state = match;
+          } catch (_) {
+            // Match no longer pending — clear cache
+            _clearHive();
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _clearHive() {
+    try {
+      Hive.box<dynamic>('cache').delete(_boxKey);
+    } catch (_) {}
+  }
+
+  void setMatch(MatchEntity? value) {
+    state = value;
+    try {
+      final box = Hive.box<dynamic>('cache');
+      if (value != null) {
+        box.put(_boxKey, value.id);
+      } else {
+        box.delete(_boxKey);
+      }
+    } catch (_) {}
+  }
+}
+
+final createdMatchCacheProvider =
+    NotifierProvider<_CreatedMatchCacheNotifier, MatchEntity?>(
+  _CreatedMatchCacheNotifier.new,
 );
 
 // ── Live Room State ───────────────────────────────────────────────────────────
@@ -361,10 +451,7 @@ class LiveRoomNotifier extends FamilyNotifier<LiveRoomState, String> {
       await ref.read(challengeRepositoryProvider).submitAnswer(
             matchId: matchId,
             content: state.submissionContent,
-            language: (state.match?.domain == ChallengeDomain.coding ||
-                    state.match?.domain == ChallengeDomain.data)
-                ? state.selectedLanguage
-                : null,
+            language: state.selectedLanguage,
             isAuto: isAuto,
           );
       AnalyticsService.instance.matchSubmitted(
@@ -435,16 +522,16 @@ class InviteActionNotifier extends Notifier<AsyncValue<MatchEntity?>> {
     }
   }
 
-  Future<void> decline(String matchId) async {
+  Future<void> decline(String matchId, {String? reason}) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
       () async {
-        await ref.read(challengeRepositoryProvider).declineInvite(matchId);
+        await ref.read(challengeRepositoryProvider).declineInvite(matchId, reason: reason);
         return null;
       },
     );
     if (!state.hasError) {
-      AnalyticsService.instance.challengeInviteDeclined(matchId, '');
+      AnalyticsService.instance.challengeInviteDeclined(matchId, reason ?? '');
       ref.invalidate(pendingInvitesProvider);
     }
   }

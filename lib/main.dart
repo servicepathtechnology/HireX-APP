@@ -16,6 +16,7 @@ import 'core/network/dio_client.dart';
 import 'core/notifications/fcm_service.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'features/challenges/presentation/providers/challenge_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -65,7 +66,15 @@ class _HireXAppState extends ConsumerState<HireXApp> {
         // FCM push notifications
         final dioClient = DioClient();
         await FCMService.instance.initialize(dioClient);
-        await FCMService.instance.checkInitialMessage(router);
+        await FCMService.instance.checkInitialMessage(
+          router,
+          onChallengeNotification: () {
+            // Invalidate challenge providers so hub refreshes immediately
+            ref.invalidate(myMatchesProvider);
+            ref.invalidate(pendingInvitesProvider);
+            ref.invalidate(myEloProvider);
+          },
+        );
 
         // Branch.io deep linking — callback navigates via router
         await DeepLinkHandler.instance.initialize(

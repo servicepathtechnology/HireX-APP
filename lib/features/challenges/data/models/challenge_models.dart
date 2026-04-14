@@ -11,6 +11,7 @@ class MatchModel {
     required this.taskId,
     required this.durationMinutes,
     required this.status,
+    required this.difficulty,
     this.challengeLink,
     this.startedAt,
     this.endedAt,
@@ -28,7 +29,10 @@ class MatchModel {
     this.taskDescription,
     this.taskRequirements,
     this.inviteMessage,
+    this.declineReason,
     this.spectatorCount,
+    this.winnerPoints,
+    this.challengeBadge,
   });
 
   final String id;
@@ -38,6 +42,7 @@ class MatchModel {
   final String taskId;
   final int durationMinutes;
   final String status;
+  final String difficulty;
   final String? challengeLink;
   final DateTime? startedAt;
   final DateTime? endedAt;
@@ -55,16 +60,20 @@ class MatchModel {
   final String? taskDescription;
   final String? taskRequirements;
   final String? inviteMessage;
+  final String? declineReason;
   final int? spectatorCount;
+  final int? winnerPoints;
+  final String? challengeBadge;
 
   factory MatchModel.fromJson(Map<String, dynamic> json) => MatchModel(
         id: json['id'] as String,
         challengerId: json['challenger_id'] as String,
         opponentId: json['opponent_id'] as String,
         domain: json['domain'] as String,
-        taskId: json['task_id'] as String,
+        taskId: json['task_id'] as String? ?? '',
         durationMinutes: json['duration_minutes'] as int,
         status: json['status'] as String,
+        difficulty: json['difficulty'] as String? ?? 'easy',
         challengeLink: json['challenge_link'] as String?,
         startedAt: json['started_at'] != null
             ? DateTime.parse(json['started_at'] as String)
@@ -86,7 +95,10 @@ class MatchModel {
         taskDescription: json['task_description'] as String?,
         taskRequirements: json['task_requirements'] as String?,
         inviteMessage: json['invite_message'] as String?,
+        declineReason: json['decline_reason'] as String?,
         spectatorCount: json['spectator_count'] as int?,
+        winnerPoints: json['winner_points'] as int?,
+        challengeBadge: json['challenge_badge'] as String?,
       );
 
   MatchEntity toEntity() => MatchEntity(
@@ -97,6 +109,7 @@ class MatchModel {
         taskId: taskId,
         durationMinutes: durationMinutes,
         status: MatchStatusX.fromString(status),
+        difficulty: ChallengeDifficultyX.fromString(difficulty),
         challengeLink: challengeLink,
         startedAt: startedAt,
         endedAt: endedAt,
@@ -114,7 +127,10 @@ class MatchModel {
         taskDescription: taskDescription,
         taskRequirements: taskRequirements,
         inviteMessage: inviteMessage,
+        declineReason: declineReason,
         spectatorCount: spectatorCount,
+        winnerPoints: winnerPoints,
+        challengeBadge: challengeBadge,
       );
 }
 

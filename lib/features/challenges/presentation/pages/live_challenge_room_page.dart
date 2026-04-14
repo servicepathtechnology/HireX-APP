@@ -474,29 +474,13 @@ class _SubmissionPanel extends ConsumerWidget {
   }
 
   Widget _buildEditor(BuildContext context, WidgetRef ref, LiveRoomNotifier notifier) {
-    switch (match.domain) {
-      case ChallengeDomain.coding:
-      case ChallengeDomain.data:
-        return _CodeEditor(
-          content: state.submissionContent,
-          onChanged: notifier.updateContent,
-          readOnly: state.hasSubmitted,
-          matchId: matchId,
-        );
-      case ChallengeDomain.design:
-        return _DesignSubmission(
-          content: state.submissionContent,
-          onChanged: notifier.updateContent,
-          readOnly: state.hasSubmitted,
-        );
-      default:
-        return _RichTextEditor(
-          content: state.submissionContent,
-          onChanged: notifier.updateContent,
-          readOnly: state.hasSubmitted,
-          domain: match.domain,
-        );
-    }
+    // 1v1 is coding-only — always show the code editor
+    return _CodeEditor(
+      content: state.submissionContent,
+      onChanged: notifier.updateContent,
+      readOnly: state.hasSubmitted,
+      matchId: matchId,
+    );
   }
 }
 
@@ -649,71 +633,32 @@ class _RichTextEditorState extends State<_RichTextEditor> {
     super.dispose();
   }
 
-  String get _placeholder {
-    switch (widget.domain) {
-      case ChallengeDomain.product:
-        return 'Problem Statement:\n\nProposed Solution:\n\nSuccess Metrics:\n\nTradeoffs:';
-      case ChallengeDomain.marketing:
-        return 'Campaign Strategy:\n\nTarget Audience:\n\nKey Messages:\n\nChannels:';
-      case ChallengeDomain.writing:
-        return 'Start writing here...';
-      default:
-        return 'Write your response here...';
-    }
-  }
+  String get _placeholder => 'Write your response here...';
 
   @override
   Widget build(BuildContext context) {
-    final wordCount = widget.content.trim().isEmpty
-        ? 0
-        : widget.content.trim().split(RegExp(r'\s+')).length;
-
-    return Column(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _ctrl,
-            readOnly: widget.readOnly,
-            maxLines: null,
-            expands: true,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontSize: 14,
-              color: Colors.white,
-              height: 1.7,
-            ),
-            decoration: InputDecoration(
-              contentPadding: const EdgeInsets.all(16),
-              border: InputBorder.none,
-              hintText: _placeholder,
-              hintStyle: const TextStyle(
-                color: AppColors.onSurface,
-                fontFamily: 'Inter',
-                fontSize: 14,
-              ),
-            ),
-            onChanged: widget.onChanged,
-          ),
+    return TextField(
+      controller: _ctrl,
+      readOnly: widget.readOnly,
+      maxLines: null,
+      expands: true,
+      style: const TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 14,
+        color: Colors.white,
+        height: 1.7,
+      ),
+      decoration: InputDecoration(
+        contentPadding: const EdgeInsets.all(16),
+        border: InputBorder.none,
+        hintText: _placeholder,
+        hintStyle: const TextStyle(
+          color: AppColors.onSurface,
+          fontFamily: 'Inter',
+          fontSize: 14,
         ),
-        if (widget.domain == ChallengeDomain.writing)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            color: AppColors.surface,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Text(
-                  '$wordCount words',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: AppColors.onSurface,
-                    fontFamily: 'Inter',
-                  ),
-                ),
-              ],
-            ),
-          ),
-      ],
+      ),
+      onChanged: widget.onChanged,
     );
   }
 }

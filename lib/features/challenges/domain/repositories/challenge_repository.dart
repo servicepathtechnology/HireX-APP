@@ -7,11 +7,14 @@ abstract class ChallengeRepository {
     required String opponentId,
     required ChallengeDomain domain,
     required int durationMinutes,
+    required ChallengeDifficulty difficulty,
     String? message,
   });
 
   Future<MatchEntity> acceptInvite(String matchId);
-  Future<void> declineInvite(String matchId);
+  Future<void> declineInvite(String matchId, {String? reason});
+  Future<void> cancelInvite(String matchId);
+  Future<List<String>> getDeclineReasons();
 
   // ── Match ──────────────────────────────────────────────────────────────────
   Future<MatchEntity> getMatch(String matchId);

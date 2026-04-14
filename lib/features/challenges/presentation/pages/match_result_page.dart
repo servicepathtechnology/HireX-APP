@@ -64,7 +64,7 @@ class MatchResultPage extends ConsumerWidget {
   }
 }
 
-class _ResultContent extends StatelessWidget {
+class _ResultContent extends StatefulWidget {
   const _ResultContent({
     required this.result,
     required this.currentUserId,
@@ -75,8 +75,34 @@ class _ResultContent extends StatelessWidget {
   final String currentUserId;
   final String matchId;
 
-  bool get _isWinner => result.match.isWinner(currentUserId);
-  bool get _isDraw => result.match.isDraw;
+  @override
+  State<_ResultContent> createState() => _ResultContentState();
+}
+
+class _ResultContentState extends State<_ResultContent> {
+  bool _badgeShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Show badge overlay after a short delay if winner earned a badge
+    if (widget.result.match.isWinner(widget.currentUserId) &&
+        widget.result.match.challengeBadge != null) {
+      Future.delayed(const Duration(milliseconds: 800), () {
+        if (mounted && !_badgeShown) {
+          _badgeShown = true;
+          context.push(
+            '/challenges/1v1/${widget.matchId}/badge'
+            '?badge=${widget.result.match.challengeBadge}'
+            '&points=${widget.result.match.winnerPoints ?? 50}',
+          );
+        }
+      });
+    }
+  }
+
+  bool get _isWinner => widget.result.match.isWinner(widget.currentUserId);
+  bool get _isDraw => widget.result.match.isDraw;
 
   String get _headline {
     if (_isDraw) return 'Draw!';
@@ -98,10 +124,10 @@ class _ResultContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myScore = result.mySubmission?.score;
-    final oppScore = result.opponentSubmission?.score;
-    final match = result.match;
-    final opponentName = currentUserId == match.challengerId
+    final myScore = widget.result.mySubmission?.score;
+    final oppScore = widget.result.opponentSubmission?.score;
+    final match = widget.result.match;
+    final opponentName = widget.currentUserId == match.challengerId
         ? (match.opponentName ?? 'Opponent')
         : (match.challengerName ?? 'Challenger');
 
@@ -133,6 +159,16 @@ class _ResultContent extends StatelessWidget {
                 fontFamily: 'Inter',
               ),
             ),
+
+            // Winner badge & points reward
+            if (_isWinner && match.challengeBadge != null) ...[
+              const SizedBox(height: 16),
+              _WinnerRewardCard(
+                badge: match.challengeBadge!,
+                points: match.winnerPoints ?? 0,
+                difficulty: match.difficulty,
+              ),
+            ],
 
             const SizedBox(height: 32),
 
@@ -174,17 +210,17 @@ class _ResultContent extends StatelessWidget {
 
             // ELO change
             _EloChangeCard(
-              eloChange: result.myEloChange,
-              newElo: result.myNewElo,
-              newTier: result.myNewTier,
-              tierChanged: result.tierChanged,
+              eloChange: widget.result.myEloChange,
+              newElo: widget.result.myNewElo,
+              newTier: widget.result.myNewTier,
+              tierChanged: widget.result.tierChanged,
             ),
 
             const SizedBox(height: 24),
 
             // AI Feedback (private)
-            if (result.mySubmission?.aiFeedback != null)
-              _FeedbackCard(feedback: result.mySubmission!.aiFeedback!),
+            if (widget.result.mySubmission?.aiFeedback != null)
+              _FeedbackCard(feedback: widget.result.mySubmission!.aiFeedback!),
 
             const SizedBox(height: 32),
 
@@ -220,12 +256,11 @@ class _ResultContent extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            // View opponent profile
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => context.push(
-                  '/recruiter/candidates/${currentUserId == match.challengerId ? match.opponentId : match.challengerId}',
+                  '/recruiter/candidates/${widget.currentUserId == match.challengerId ? match.opponentId : match.challengerId}',
                 ),
                 icon: const Icon(Icons.person_outline_rounded, size: 18),
                 label: Text(
@@ -241,11 +276,10 @@ class _ResultContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            // View full detail / replay
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
-                onPressed: () => context.push('/challenges/1v1/$matchId/detail'),
+                onPressed: () => context.push('/challenges/1v1/${widget.matchId}/detail'),
                 icon: const Icon(Icons.receipt_long_rounded, size: 16, color: AppColors.onSurface),
                 label: const Text(
                   'View Full Submission & Replay',
@@ -272,29 +306,28 @@ class _ResultContent extends StatelessWidget {
 
   void _shareResult(BuildContext context) {
     final outcome = _isDraw ? 'draw' : (_isWinner ? 'win' : 'loss');
-    final eloChange = result.myEloChange >= 0
-        ? '+${result.myEloChange}'
-        : '${result.myEloChange}';
-    AnalyticsService.instance.matchResultShared(matchId, outcome);
-    if (result.tierChanged) {
+    final eloChange = widget.result.myEloChange >= 0
+        ? '+${widget.result.myEloChange}'
+        : '${widget.result.myEloChange}';
+    AnalyticsService.instance.matchResultShared(widget.matchId, outcome);
+    if (widget.result.tierChanged) {
       AnalyticsService.instance.eloTierChanged(
-        result.opponentNewTier.value,
-        result.myNewTier.value,
-        result.myNewElo,
+        widget.result.opponentNewTier.value,
+        widget.result.myNewTier.value,
+        widget.result.myNewElo,
       );
     }
-    // Try to create a Branch deep link, fall back to plain text
     DeepLinkHandler.instance
-        .createMatchResultLink(matchId, result.match.domain.label, outcome)
+        .createMatchResultLink(widget.matchId, widget.result.match.domain.label, outcome)
         .then((link) {
       final shareText = link != null
           ? 'I just ${_isDraw ? 'drew' : (_isWinner ? 'won' : 'lost')} a 1v1 '
-              '${result.match.domain.label} challenge on HireX! '
-              'ELO: $eloChange (${result.myNewElo}) — ${result.myNewTier.label} tier. '
+              '${widget.result.match.domain.label} challenge on HireX! '
+              'ELO: $eloChange (${widget.result.myNewElo}) — ${widget.result.myNewTier.label} tier. '
               'Challenge me: $link'
           : 'I just ${_isDraw ? 'drew' : (_isWinner ? 'won' : 'lost')} a 1v1 '
-              '${result.match.domain.label} challenge on HireX! '
-              'ELO: $eloChange (${result.myNewElo}) — ${result.myNewTier.label} tier. '
+              '${widget.result.match.domain.label} challenge on HireX! '
+              'ELO: $eloChange (${widget.result.myNewElo}) — ${widget.result.myNewTier.label} tier. '
               'Challenge me: https://hirex.app/challenges';
       Share.share(shareText);
     });
@@ -448,7 +481,6 @@ class _EloChangeCard extends StatelessWidget {
 class _FeedbackCard extends StatelessWidget {
   const _FeedbackCard({required this.feedback});
   final String feedback;
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -484,6 +516,112 @@ class _FeedbackCard extends StatelessWidget {
               color: AppColors.onSurface,
               fontFamily: 'Inter',
               height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+class _WinnerRewardCard extends StatelessWidget {
+  const _WinnerRewardCard({
+    required this.badge,
+    required this.points,
+    required this.difficulty,
+  });
+
+  final String badge;
+  final int points;
+  final ChallengeDifficulty difficulty;
+
+  String get _badgeLabel {
+    switch (badge) {
+      case 'coding_warrior': return '🏅 Coding Warrior';
+      case 'code_crusher': return '💪 Code Crusher';
+      case 'algorithm_master': return '🧠 Algorithm Master';
+      default: return '🏆 Challenge Winner';
+    }
+  }
+
+  Color get _difficultyColor {
+    switch (difficulty) {
+      case ChallengeDifficulty.easy: return const Color(0xFF22C55E);
+      case ChallengeDifficulty.medium: return const Color(0xFFF59E0B);
+      case ChallengeDifficulty.hard: return const Color(0xFFEF4444);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            _difficultyColor.withValues(alpha: 0.15),
+            AppColors.surface,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _difficultyColor.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _badgeLabel,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: _difficultyColor,
+                  fontFamily: 'Inter',
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Badge earned for winning ${difficulty.label} challenge',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.onSurface,
+                  fontFamily: 'Inter',
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: _difficultyColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _difficultyColor.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                Text(
+                  '+$points',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: _difficultyColor,
+                    fontFamily: 'Inter',
+                  ),
+                ),
+                Text(
+                  'pts',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: _difficultyColor.withValues(alpha: 0.7),
+                    fontFamily: 'Inter',
+                  ),
+                ),
+              ],
             ),
           ),
         ],

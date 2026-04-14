@@ -9,12 +9,14 @@ class ChallengeRemoteDataSource {
     required String opponentId,
     required String domain,
     required int durationMinutes,
+    required String difficulty,
     String? message,
   }) async {
     final res = await dio.post('/api/v1/challenges/matches', data: {
       'opponent_id': opponentId,
       'domain': domain,
       'duration_minutes': durationMinutes,
+      'difficulty': difficulty,
       if (message != null) 'invite_message': message,
     });
     return MatchModel.fromJson(res.data as Map<String, dynamic>);
@@ -25,8 +27,20 @@ class ChallengeRemoteDataSource {
     return MatchModel.fromJson(res.data as Map<String, dynamic>);
   }
 
-  Future<void> declineInvite(String matchId) async {
-    await dio.post('/api/v1/challenges/matches/$matchId/decline');
+  Future<void> declineInvite(String matchId, {String? reason}) async {
+    await dio.post(
+      '/api/v1/challenges/matches/$matchId/decline',
+      data: {'reason': reason},
+    );
+  }
+
+  Future<void> cancelInvite(String matchId) async {
+    await dio.post('/api/v1/challenges/matches/$matchId/cancel');
+  }
+
+  Future<List<String>> getDeclineReasons() async {
+    final res = await dio.get('/api/v1/challenges/decline-reasons');
+    return (res.data as List<dynamic>).cast<String>();
   }
 
   Future<MatchModel> getMatch(String matchId) async {

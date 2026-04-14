@@ -305,7 +305,7 @@ class _SubmissionReplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isCoding = domain == ChallengeDomain.coding || domain == ChallengeDomain.data;
+    final isCoding = domain == ChallengeDomain.coding;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(

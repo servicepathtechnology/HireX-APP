@@ -13,6 +13,7 @@ dependencies:
   # State management
   flutter_riverpod: ^2.5.1
   riverpod_annotation: ^2.3.5
+  freezed_annotation: ^2.4.1
 
   # Navigation
   go_router: ^14.2.7
@@ -65,6 +66,7 @@ dependencies:
   # Part 4 packages
   flutter_local_notifications: ^17.2.4
   web_socket_channel: ^3.0.1
+  webview_flutter: ^4.10.0
 
   # Part 5 packages
   sentry_flutter: ^9.16.1
@@ -84,6 +86,8 @@ dev_dependencies:
   flutter_lints: ^4.0.0
   build_runner: ^2.4.12
   riverpod_generator: ^2.4.3
+  freezed: ^2.4.5
+  json_serializable: ^6.7.1
   mockito: ^5.4.4
   flutter_launcher_icons: ^0.14.4
 

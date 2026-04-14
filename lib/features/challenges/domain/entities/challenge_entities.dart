@@ -3,35 +3,40 @@
 
 // ── Enums ─────────────────────────────────────────────────────────────────────
 
-enum ChallengeDomain { coding, design, product, marketing, data, writing }
+enum ChallengeDomain { coding }
 
 extension ChallengeDomainX on ChallengeDomain {
+  String get label => 'Coding';
+  String get value => 'coding';
+
+  static ChallengeDomain fromString(String v) => ChallengeDomain.coding;
+}
+
+// ── Difficulty ────────────────────────────────────────────────────────────────
+
+enum ChallengeDifficulty { easy, medium, hard }
+
+extension ChallengeDifficultyX on ChallengeDifficulty {
   String get label {
     switch (this) {
-      case ChallengeDomain.coding: return 'Coding';
-      case ChallengeDomain.design: return 'Design';
-      case ChallengeDomain.product: return 'Product';
-      case ChallengeDomain.marketing: return 'Marketing';
-      case ChallengeDomain.data: return 'Data';
-      case ChallengeDomain.writing: return 'Writing';
+      case ChallengeDifficulty.easy: return 'Easy';
+      case ChallengeDifficulty.medium: return 'Medium';
+      case ChallengeDifficulty.hard: return 'Hard';
     }
   }
 
   String get value {
     switch (this) {
-      case ChallengeDomain.coding: return 'coding';
-      case ChallengeDomain.design: return 'design';
-      case ChallengeDomain.product: return 'product';
-      case ChallengeDomain.marketing: return 'marketing';
-      case ChallengeDomain.data: return 'data';
-      case ChallengeDomain.writing: return 'writing';
+      case ChallengeDifficulty.easy: return 'easy';
+      case ChallengeDifficulty.medium: return 'medium';
+      case ChallengeDifficulty.hard: return 'hard';
     }
   }
 
-  static ChallengeDomain fromString(String v) {
-    return ChallengeDomain.values.firstWhere(
+  static ChallengeDifficulty fromString(String v) {
+    return ChallengeDifficulty.values.firstWhere(
       (e) => e.value == v,
-      orElse: () => ChallengeDomain.coding,
+      orElse: () => ChallengeDifficulty.easy,
     );
   }
 }
@@ -110,6 +115,7 @@ class MatchEntity {
     required this.taskId,
     required this.durationMinutes,
     required this.status,
+    required this.difficulty,
     this.challengeLink,
     this.startedAt,
     this.endedAt,
@@ -127,7 +133,10 @@ class MatchEntity {
     this.taskDescription,
     this.taskRequirements,
     this.inviteMessage,
+    this.declineReason,
     this.spectatorCount,
+    this.winnerPoints,
+    this.challengeBadge,
   });
 
   final String id;
@@ -137,6 +146,7 @@ class MatchEntity {
   final String taskId;
   final int durationMinutes;
   final MatchStatus status;
+  final ChallengeDifficulty difficulty;
   final String? challengeLink;
   final DateTime? startedAt;
   final DateTime? endedAt;
@@ -156,7 +166,10 @@ class MatchEntity {
   final String? taskDescription;
   final String? taskRequirements;
   final String? inviteMessage;
+  final String? declineReason;
   final int? spectatorCount;
+  final int? winnerPoints;
+  final String? challengeBadge;
 
   bool get isDraw => status == MatchStatus.completed && winnerId == null;
 

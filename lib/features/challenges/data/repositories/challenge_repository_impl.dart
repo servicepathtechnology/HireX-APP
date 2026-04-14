@@ -12,12 +12,14 @@ class ChallengeRepositoryImpl implements ChallengeRepository {
     required String opponentId,
     required ChallengeDomain domain,
     required int durationMinutes,
+    required ChallengeDifficulty difficulty,
     String? message,
   }) async {
     final model = await dataSource.sendInvite(
       opponentId: opponentId,
       domain: domain.value,
       durationMinutes: durationMinutes,
+      difficulty: difficulty.value,
       message: message,
     );
     return model.toEntity();
@@ -30,7 +32,15 @@ class ChallengeRepositoryImpl implements ChallengeRepository {
   }
 
   @override
-  Future<void> declineInvite(String matchId) => dataSource.declineInvite(matchId);
+  Future<void> declineInvite(String matchId, {String? reason}) =>
+      dataSource.declineInvite(matchId, reason: reason);
+
+  @override
+  Future<void> cancelInvite(String matchId) =>
+      dataSource.cancelInvite(matchId);
+
+  @override
+  Future<List<String>> getDeclineReasons() => dataSource.getDeclineReasons();
 
   @override
   Future<MatchEntity> getMatch(String matchId) async {
