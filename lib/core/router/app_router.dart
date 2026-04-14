@@ -65,6 +65,12 @@ import '../../features/solo_challenges/presentation/pages/monthly_challenge_page
 import '../../features/solo_challenges/presentation/pages/solo_room_webview_page.dart';
 import '../../features/solo_challenges/presentation/pages/streak_detail_page.dart';
 import '../../features/solo_challenges/presentation/pages/preferences_page.dart';
+// Part 3 — Leaderboards + Tiers
+import '../../features/leaderboard/presentation/leaderboard_screen.dart';
+import '../../features/leaderboard/presentation/tier_detail_screen.dart';
+import '../../features/leaderboard/presentation/tier_promotion_screen.dart';
+import '../../features/leaderboard/data/leaderboard_repository.dart';
+import '../../features/leaderboard/data/models/user_rank.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -409,6 +415,46 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const ChallengePreferencesPage(),
       ),
 
+      // ── Part 3 — Leaderboards + Tiers ─────────────────────────────────────
+      GoRoute(
+        path: '/leaderboard',
+        name: 'leaderboard',
+        builder: (_, __) => const LeaderboardScreen(),
+      ),
+      GoRoute(
+        path: '/leaderboard/my-rank',
+        name: 'myRank',
+        builder: (_, state) {
+          // This will be called from the YourRankCard, we need to fetch the data
+          // For now, we'll handle this in the screen itself
+          return FutureBuilder<UserRank>(
+            future: ref.read(leaderboardRepositoryProvider).getMyRank(),
+            builder: (context, snapshot) {
+              if (snapshot.hasData) {
+                return TierDetailScreen(userRank: snapshot.data!);
+              }
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/tier-promotion',
+        name: 'tierPromotion',
+        builder: (_, state) {
+          final tier = state.uri.queryParameters['tier'] ?? 'gold';
+          final elo = int.tryParse(state.uri.queryParameters['elo'] ?? '1200') ?? 1200;
+          final rank = int.tryParse(state.uri.queryParameters['rank'] ?? '0');
+          return TierPromotionScreen(
+            newTier: tier,
+            newElo: elo,
+            newRank: rank,
+          );
+        },
+      ),
+
       // ── Candidate shell ───────────────────────────────────────────────────
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
@@ -428,6 +474,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/challenges/1v1',
             name: 'challengeHubShell',
             builder: (_, __) => const UnifiedChallengeHubPage(),
+          ),
+          GoRoute(
+            path: '/leaderboard',
+            name: 'leaderboardShell',
+            builder: (_, __) => const LeaderboardScreen(),
           ),
           GoRoute(
             path: '/messages',
