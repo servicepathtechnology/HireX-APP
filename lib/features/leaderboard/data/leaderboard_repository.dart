@@ -1,11 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hirex_app/core/network/dio_client.dart';
+import 'package:hirex_app/features/auth/presentation/providers/auth_provider.dart';
 import 'package:hirex_app/features/leaderboard/data/models/leaderboard_row.dart';
 import 'package:hirex_app/features/leaderboard/data/models/user_rank.dart';
 
 final leaderboardRepositoryProvider = Provider<LeaderboardRepository>((ref) {
-  final dio = ref.watch(dioClientProvider);
+  final dio = ref.watch(dioClientProvider).instance;
   return LeaderboardRepository(dio);
 });
 

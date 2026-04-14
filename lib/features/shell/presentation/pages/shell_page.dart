@@ -22,7 +22,7 @@ class ShellPage extends ConsumerWidget {
       _NavTab(icon: Icons.explore_outlined, label: 'Explore', route: '/candidate/home'),
       _NavTab(icon: Icons.check_circle_outline_rounded, label: 'My Tasks', route: '/candidate/my-tasks'),
       _NavTab(icon: Icons.sports_esports_rounded, label: 'Challenges', route: '/challenges/1v1'),
-      _NavTab(icon: Icons.chat_bubble_outline_rounded, label: 'Messages', route: '/messages'),
+      _NavTab(icon: Icons.leaderboard_outlined, label: 'Leaderboard', route: '/leaderboard'),
       _NavTab(icon: Icons.person_outline_rounded, label: 'Profile', route: '/candidate/profile'),
     ];
 
