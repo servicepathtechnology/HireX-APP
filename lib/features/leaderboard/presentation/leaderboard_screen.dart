@@ -163,46 +163,56 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen>
       onRefresh: () async {
         controller.refresh();
       },
-      child: PagedListView<int, LeaderboardRow>(
-        pagingController: controller,
-        builderDelegate: PagedChildBuilderDelegate<LeaderboardRow>(
-          itemBuilder: (context, row, index) {
-            return LeaderboardRowWidget(
-              row: row,
-              isCurrentUser: row.userId == currentUserId,
-              onTap: () {
-                // Navigate to user profile
-                context.push('/profile/${row.userId}');
+      child: CustomScrollView(
+        slivers: [
+          PagedSliverList<int, LeaderboardRow>(
+            pagingController: controller,
+            builderDelegate: PagedChildBuilderDelegate<LeaderboardRow>(
+              itemBuilder: (context, row, index) {
+                return LeaderboardRowWidget(
+                  row: row,
+                  isCurrentUser: row.userId == currentUserId,
+                  onTap: () {
+                    // Navigate to user profile
+                    context.push('/profile/${row.userId}');
+                  },
+                );
               },
-            );
-          },
-          firstPageErrorIndicatorBuilder: (context) => Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 48, color: Colors.grey),
-                const SizedBox(height: 16),
-                Text(
-                  'Failed to load leaderboard',
-                  style: Theme.of(context).textTheme.bodyLarge,
+              firstPageErrorIndicatorBuilder: (context) => SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline, size: 48, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load leaderboard',
+                        style: Theme.of(context).textTheme.bodyLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () => controller.refresh(),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => controller.refresh(),
-                  child: const Text('Retry'),
+              ),
+              newPageProgressIndicatorBuilder: (context) => const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              firstPageProgressIndicatorBuilder: (context) => SliverFillRemaining(
+                child: _buildListShimmer(),
+              ),
+              noItemsFoundIndicatorBuilder: (context) => SliverFillRemaining(
+                child: const Center(
+                  child: Text('No data available'),
                 ),
-              ],
+              ),
             ),
           ),
-          newPageProgressIndicatorBuilder: (context) => const Padding(
-            padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
-          ),
-          firstPageProgressIndicatorBuilder: (context) => _buildListShimmer(),
-          noItemsFoundIndicatorBuilder: (context) => const Center(
-            child: Text('No data available'),
-          ),
-        ),
+        ],
       ),
     );
   }
